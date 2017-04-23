@@ -1,0 +1,164 @@
+***
+*Note*
+
+The environment is defined by the [kaggle/rstats docker image](https://github.com/kaggle/docker-rstats).
+
+***
+
+# Pokemon Data Exploration
+
+Before conducting the exploration, we have some questions (well, actually curiosity) in minds:
+
+1. How many Pokemons are marked as legendary?
+2. Which type has the most Pokemons? Which type is the strongest?
+3. Which generation has stronger Pokemons?
+
+
+Note: the questions will be added as we inspect the data.
+
+
+Let's check out the Pokemon list first.
+
+```{r Import Dataset, echo = FALSE}
+library(ggplot2) # Data visualization
+library(readr) # CSV file I/O, e.g. the read_csv function
+# system("ls ../input", intern=TRUE)
+
+
+pokemon <- read.csv("../input/Pokemon.csv")
+str(pokemon)
+
+colnames(pokemon) <- c("num","name","type1","type2","total","hp","attack","defense","spAtk","spDef","speed","generation","legendary")
+head(pokemon)
+```
+
+There are `r nrow(pokemon)` records on the datasets. Let's check the overall summary statistics.
+
+```{r Summary Stats, echo = FALSE}
+summary(pokemon)
+```
+
+Some initial findings:
+
+1. There are 800 records, but the Pokemons are actually only `r max(pokemon$num)`. (are there any duplicated records?)
+2. The Pokemon distribution (based on total power) is left-skewed (the mean total is lower than the median). Seems like the upper 25\% are much stronger than the others.
+3. `r round(100.00 * nrow(subset(pokemon, legendary == 'True')) / nrow(pokemon),2)`\% of the Pokemons are categorized as legendary.
+4. There are already 6 generation of Pokemons (I don't realize it)
+
+*Let's check whether there are any duplicated records first*
+
+```{r Check duplicates}
+library(dplyr)
+library(sqldf)
+tmp <- pokemon %>% group_by(num) %>% summarise(counts = n()) %>% filter(counts > 1)
+
+duplicate <- sqldf("select * from pokemon where num in (select num from tmp) order by num")
+head(duplicate)
+
+```
+
+There are `r nrow(tmp)` duplicated row numbers, which actually store different Pokemon records (most of them store the Pokemon's evolution). Hence, we don't need to discard any of the records, since all of them are unique.
+
+***
+
+## Legendary Pokemons
+
+```{r Check legendary pokemons}
+legend <- subset(pokemon, legendary == 'True')
+
+numCols <- sapply(pokemon, is.numeric)
+legend.numCols <- select_if(legend, is.numeric)
+legend.numCols <- legend.numCols[,!names(legend.numCols) %in% c("num")]
+
+summary(legend.numCols)
+
+```
+
+The legendary Pokemons' minimum HP is `r min(legend$hp)` and max HP is `r max(legend$hp)`, which is between than Q1 and upper Q3 of HP distribution on **all** pokemons, but isn't the maximum one. However, the total stats of legendary Pokemons are above total stats' Q3 of **all** Pokemon's (they are certainly strong enough to be marked as legendary!).
+
+Here's the list of the top 15 legendary Pokemons.
+
+```{r Top 15 Legendary Pokemon List}
+legend %>% arrange(desc(total)) %>% slice(1:15)
+```
+
+As imagined, the top legendary Pokemons are dominated by Dragons and Flying types. However, it shows that the 3rd generation Pokemons dominate the top list.
+
+
+*Which attributes highly correlate to the total stats?*
+```{r Correlation Plots}
+library(corrplot)
+
+par(mfrow = c(1,1))
+
+cor <- cor(na.exclude(legend.numCols))
+
+corrplot(cor, method = 'number', tl.cex = 0.8, number.cex = 0.8, title = 'Correlation on Legendary Pokemons')
+```
+
+The correlation plot shows that the total stats of legendary Pokemons are mainly correlated by their Special Attack, Attack, and HP.
+As usual, defense is negatively correlated with speed (and also special attack!).
+
+*Let's check the plot of total stats based on other attributes*
+
+```{r Visualize Legendary Pokemon data - by generation}
+for (i in colnames(legend.numCols)){
+    if (i != 'total' & i != 'generation'){
+        plot <- ggplot(data = legend, aes_string(x = i, y = 'total')) +
+            geom_jitter(aes(color = as.factor(generation))) +
+            geom_smooth(method = 'lm', se = FALSE, color = 'red') +
+            theme_dark() +
+            labs(x = i, y = "Total Stats") +
+            scale_color_brewer(type = "qual") +
+            ggtitle(paste0(i, " vs Total Stats - by Generation", sep = " "))
+  
+        print(plot)    
+    }
+        
+}
+```
+
+Notes:
+
+1. 1st generation Pokemons have relatively high attack points, but their defense are in mid-low range.
+2. 3rd generation Pokemons have have high defense, but their total stats aren't that high. However, `r sqldf("select name from legend where generation = 3 and total = (select max(total) from legend where generation = 3)")` is quite good.
+
+
+```{r Visualize Legendary Pokemon data - by type}
+cbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", 
+                "#F0E442", "#0072B2", "#D55E00", "#CC79A7",
+                "#268BD2","#859900","#6c71c4","#da413d",
+                "#e67300","#666633","#39ac39")
+
+for (i in colnames(legend.numCols)){
+    if (i != 'total' & i != 'generation'){
+        plot <- ggplot(data = legend, aes_string(x = i, y = 'total')) +
+            geom_jitter(aes(color = type1)) +
+            geom_smooth(method = 'lm', se = FALSE, color = 'red') +
+            theme_minimal() +
+            labs(x = i, y = "Total Stats") +
+            scale_color_manual(values = cbPalette) +
+            ggtitle(paste0(i, " vs Total Stats - by Type", sep = " "))
+  
+        print(plot)    
+    }
+        
+}
+
+```
+
+...
+
+
+***
+
+## Strongest Pokemon 
+
+### Based on Type
+
+...
+*Note: I'll get back to this later*
+
+
+
+### Based on Generation
