@@ -1,4 +1,4 @@
-# Kaggle Repository
+# Data Analysis
 
-This repository contains exploratory and experimentation scripts which are created for learning purpose. All datasets are retrieved from [Kaggle](http://kaggle.com/).
+This repository contains exploratory analysis which are mostly created for learning purpose. Datasets are retrieved from various sources, including [Kaggle](http://kaggle.com/).
 
